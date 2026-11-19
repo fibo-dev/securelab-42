@@ -28,3 +28,19 @@ Accept: application/json
 ### Lab 1 extension point: expected 501 before student implementation
 GET {{host}}/api/incidents/severity-summary
 Accept: application/json
+
+### T-06: Успішна відповідь без фільтра (200 OK)
+GET http://localhost:5080/api/incidents/severity-summary
+Accept: application/json
+
+### T-06a: Фільтр Triaged (200 OK)
+GET http://localhost:5080/api/incidents/severity-summary?status=Triaged
+Accept: application/json
+
+### T-06b: Фільтр Resolved (200 OK, порожній масив)
+GET http://localhost:5080/api/incidents/severity-summary?status=Resolved
+Accept: application/json
+
+### T-06c: Невалідний статус (400 Bad Request)
+GET http://localhost:5080/api/incidents/severity-summary?status=Unknown
+Accept: application/json

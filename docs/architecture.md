@@ -43,3 +43,16 @@ submit/click у Client/app.js
 - `src/SecureLab.Api/appsettings*.json` — режим міграцій і локальний connection string;
 - `infra/compose.yaml` — версія PostgreSQL, порт і локальні навчальні облікові дані;
 - змінна середовища `ConnectionStrings__SecureLab` — безпечний спосіб перевизначити connection string поза репозиторієм.
+
+# Розширення: Підсумок за severity
+
+## Контракт
+- Маршрут: `GET /api/incidents/severity-summary`
+- Параметр: опціональний `?status=` (New, Triaged, InProgress, Resolved, Closed).
+- Політика нулів: повертаємо лише ті severity, які реально є (без штучних нулів).
+- Сортування: за спаданням критичності (Critical → High → Medium → Low). Оскільки в БД це текст, сортуємо в пам'яті через словник.
+- Валідація: `Enum.TryParse` + `Enum.IsDefined`. Якщо статус невалідний — `400 Validation Problem`.
+
+## Безпека
+- Використовується `AsNoTracking()` для оптимізації читання.
+- Клієнтський рендер виконується через `textContent` (захист від XSS).
