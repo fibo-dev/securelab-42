@@ -3,6 +3,10 @@ const listStatusElement = document.querySelector("#list-status");
 const detailsElement = document.querySelector("#incident-details");
 const filterForm = document.querySelector("#filter-form");
 
+const summaryListElement = document.getElementById("severity-summary-list");
+const summaryStatusElement = document.getElementById("summary-status");
+const refreshSummaryButton = document.getElementById("refresh-summary");
+
 async function apiFetch(path, options = {}) {
   const response = await fetch(path, {
     headers: { Accept: "application/json", ...options.headers },
@@ -78,6 +82,33 @@ function renderIncidentDetails(incident) {
   detailsElement.replaceChildren(heading, metadata, description, commentsHeading, comments);
 }
 
+function renderSeveritySummary(summary) {
+  summaryListElement.replaceChildren(); 
+
+  if (summary.length === 0) {
+    summaryStatusElement.textContent = "За заданим фільтром інцидентів немає.";
+    return;
+  }
+
+  summaryStatusElement.textContent = `Знайдено категорій: ${summary.length}`;
+
+  for (const item of summary) {
+    const li = document.createElement("li");
+    li.className = "incident-item";
+    
+    const h3 = document.createElement("h3");
+    h3.textContent = `Рівень: ${item.severity}`;
+    
+    const p = document.createElement("p");
+    p.textContent = `Кількість: ${item.count}`;
+
+    li.appendChild(h3);
+    li.appendChild(p);
+    summaryListElement.appendChild(li);
+  }
+}
+
+
 async function loadIncidents() {
   listStatusElement.textContent = "Завантаження…";
   listElement.replaceChildren();
@@ -89,6 +120,23 @@ async function loadIncidents() {
     renderIncidentList(await apiFetch(`/api/incidents${query}`));
   } catch (error) {
     listStatusElement.textContent = `Помилка: ${error.message}`;
+  }
+}
+
+async function loadSeveritySummary() {
+  summaryStatusElement.textContent = "Завантаження…";
+  summaryListElement.replaceChildren();
+
+  const status = document.getElementById("status-filter").value;
+  const url = status 
+    ? `/api/incidents/severity-summary?status=${encodeURIComponent(status)}`
+    : "/api/incidents/severity-summary";
+
+  try {
+    const data = await apiFetch(url); 
+    renderSeveritySummary(data);
+  } catch (error) {
+    summaryStatusElement.textContent = `Помилка: ${error.message}`;
   }
 }
 
@@ -107,5 +155,7 @@ filterForm.addEventListener("submit", (event) => {
   event.preventDefault();
   loadIncidents();
 });
+
+refreshSummaryButton.addEventListener("click", loadSeveritySummary);
 
 loadIncidents();

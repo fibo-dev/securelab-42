@@ -21,10 +21,7 @@ public static class IncidentEndpoints
             .Produces<IncidentDetailsResponse>()
             .ProducesProblem(StatusCodes.Status404NotFound);
 
-        group.MapGet("/severity-summary", () => Results.Problem(
-                title: "Точку розширення ще не реалізовано",
-                detail: "Завершіть цей endpoint під час лабораторної роботи № 1.",
-                statusCode: StatusCodes.Status501NotImplemented))
+        group.MapGet("/severity-summary", GetSeveritySummaryAsync)
             .WithName("GetIncidentSeveritySummary")
             .ProducesProblem(StatusCodes.Status501NotImplemented);
 
@@ -67,4 +64,29 @@ public static class IncidentEndpoints
                 statusCode: StatusCodes.Status404NotFound)
             : Results.Ok(incident);
     }
+
+    private static async Task<IResult> GetSeveritySummaryAsync(
+        string? status,
+        IncidentQueries queries,
+        CancellationToken cancellationToken)
+    {
+        IncidentStatus? parsedStatus = null;
+
+        if (!string.IsNullOrWhiteSpace(status))
+        {
+            if (!Enum.TryParse<IncidentStatus>(status, ignoreCase: true, out var validStatus) || 
+                !Enum.IsDefined(validStatus))
+            {
+                return Results.ValidationProblem(new Dictionary<string, string[]>
+                {
+                    { "status", new[] { "Допустимі значення: New, Triaged, InProgress, Resolved, Closed." } }
+                });
+            }
+            parsedStatus = validStatus;
+        }
+
+        var summary = await queries.GetSeveritySummaryAsync(parsedStatus, cancellationToken);
+        return Results.Ok(summary);
+    }
+
 }

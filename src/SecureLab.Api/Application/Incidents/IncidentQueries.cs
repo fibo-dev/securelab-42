@@ -31,6 +31,8 @@ public sealed class IncidentQueries(SecureLabDbContext dbContext, ILogger<Incide
             .ToListAsync(cancellationToken);
     }
 
+
+    
     public Task<IncidentDetailsResponse?> GetDetailsAsync(Guid id, CancellationToken cancellationToken)
     {
         logger.LogInformation("Loading incident {IncidentId}", id);
@@ -58,4 +60,38 @@ public sealed class IncidentQueries(SecureLabDbContext dbContext, ILogger<Incide
                     .ToList()))
             .SingleOrDefaultAsync(cancellationToken);
     }
+
+    public async Task<IReadOnlyList<IncidentSeveritySummaryResponse>> GetSeveritySummaryAsync(
+        IncidentStatus? status,
+        CancellationToken cancellationToken)
+    {
+        logger.LogInformation("Loading severity summary. FilterStatus: {Status}", status);
+
+        var query = dbContext.Incidents.AsNoTracking();
+
+        if (status.HasValue)
+        {
+            query = query.Where(incident => incident.Status == status.Value);
+        }
+
+        var summary = await query
+            .GroupBy(incident => incident.Severity)
+            .Select(group => new IncidentSeveritySummaryResponse(
+                group.Key.ToString(),
+                group.Count()))
+            .ToListAsync(cancellationToken);
+
+        var severityOrder = new Dictionary<IncidentSeverity, int>
+        {
+            { IncidentSeverity.Critical, 1 },
+            { IncidentSeverity.High, 2 },
+            { IncidentSeverity.Medium, 3 },
+            { IncidentSeverity.Low, 4 }
+        };
+
+        return summary
+            .OrderBy(item => severityOrder.TryGetValue(Enum.Parse<IncidentSeverity>(item.Severity), out var order) ? order : 99)
+            .ToList();
+    }
+
 }
