@@ -108,13 +108,22 @@ public static class Lab03Identity
             ));
         });        
 
-        app.MapPost("/api/auth/login", async (LoginInput input, SignInManager<ApplicationUser> signIn) =>
+        app.MapPost("/api/auth/login", async (LoginInput input, SignInManager<ApplicationUser> signIn, ILogger<Program> logger) =>
         {
             if (string.IsNullOrWhiteSpace(input.UserName) || string.IsNullOrEmpty(input.Password))
                 return Results.Unauthorized();
+
             var result = await signIn.PasswordSignInAsync(input.UserName, input.Password, false, false);
-            return result.Succeeded ? Results.NoContent() : Results.Unauthorized();
-        });
+
+            if (result.Succeeded)
+            {
+                logger.LogInformation("Authentication successful for user: {UserName}", input.UserName);
+                return Results.NoContent();
+            }
+
+            logger.LogWarning("Authentication failed for user: {UserName}", input.UserName);
+            return Results.Unauthorized();
+        }).RequireRateLimiting("login-policy");
 	app.MapPost("/api/auth/logout", async (SignInManager<ApplicationUser> signIn) =>
 	{
 	    await signIn.SignOutAsync();

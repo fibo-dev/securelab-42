@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="utf-8">
+    <title>Ручна перевірка реєстрації</title>
+    <style>
+        body { font-family: sans-serif; margin: 2rem; }
+        label { display: block; margin: 1rem 0 0.3rem; }
+        input { width: 320px; padding: 0.4rem; }
+        button { margin-top: 1rem; padding: 0.5rem 1rem; }
+        pre { background: #f4f4f4; padding: 1rem; margin-top: 1rem; white-space: pre-wrap; }
+    </style>
+</head>
+<body>
+    <h1>Ручна перевірка реєстрації</h1>
+    <p>Т-01: новий користувач. Т-02: повтор тієї самої реєстрації.</p>
+    <label>Ім'я користувача <input id="userName" value="browseruser"></label>
+    <label>Email <input id="email" value="browseruser@test.com"></label>
+    <label>DisplayName <input id="displayName" value="Browser User"></label>
+    <label>Пароль <input id="password" type="password" value="BrowserPass123!"></label>
+    <button id="btn">Перевірити Т-01 і Т-02</button>
+    <pre id="out">Результат з'явиться тут.</pre>
+    <script>
+        document.getElementById('btn').addEventListener('click', async () => {
+            const body = {
+                userName: document.getElementById('userName').value,
+                email: document.getElementById('email').value,
+                displayName: document.getElementById('displayName').value,
+                password: document.getElementById('password').value
+            };
+            const out = document.getElementById('out');
+            out.textContent = '';
+            for (const label of ['T-01', 'T-02']) {
+                const resp = await fetch('/api/auth/register', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body)
+                });
+                const text = await resp.text();
+                out.textContent += `${label} ${resp.status} ${resp.headers.get('content-type')}\n${text}\n\n`;
+            }
+        });
+    </script>
+</body>
+</html>
