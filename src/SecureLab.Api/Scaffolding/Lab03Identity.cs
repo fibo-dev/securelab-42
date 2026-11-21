@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Identity;
 using SecureLab.Api.Data;
 using SecureLab.Api.Data.Entities;
+using SecureLab.Api.Presentation.Contracts;
 
 namespace SecureLab.Api.Scaffolding;
 
@@ -35,23 +36,76 @@ public static class Lab03Identity
 
     public static void MapLab03Identity(this WebApplication app)
     {
+
         app.MapPost("/api/auth/register", async (RegistrationInput input, UserManager<ApplicationUser> users) =>
         {
-            // ЛР 03: завершіть DTO validation та перевірки довірчої межі.
-            if (string.IsNullOrWhiteSpace(input.UserName) || string.IsNullOrWhiteSpace(input.Email)
-                || string.IsNullOrWhiteSpace(input.DisplayName) || string.IsNullOrEmpty(input.Password))
-                return Results.BadRequest();
-            var user = new ApplicationUser
+            var errors = new Dictionary<string, string[]>();
+
+            // 1. Нормалізація та перевірка довжини
+            var userName = input.UserName?.Trim() ?? "";
+            var email = input.Email?.Trim() ?? "";
+            var displayName = input.DisplayName?.Trim() ?? "";
+
+            if (string.IsNullOrWhiteSpace(userName) || userName.Length > 256)
+                errors["userName"] = ["Ім'я користувача обов'язкове (до 256 символів)."];
+
+            if (string.IsNullOrWhiteSpace(email) || email.Length > 256)
+                errors["email"] = ["Email обов'язковий (до 256 символів)."];
+
+            if (string.IsNullOrWhiteSpace(displayName) || displayName.Length > 120)
+                errors["displayName"] = ["DisplayName обов'язковий (до 120 символів)."];
+
+            if (string.IsNullOrWhiteSpace(input.Password))
+                errors["password"] = ["Пароль обов'язковий."];
+
+            if (errors.Count > 0)
+                return Results.ValidationProblem(errors);
+
+            // 2. Перевірка на дублікат (409 Conflict)
+            var existingUser = await users.FindByNameAsync(userName) 
+                            ?? await users.FindByEmailAsync(email);
+            
+            if (existingUser != null)
             {
-                Id = Guid.NewGuid(), UserName = input.UserName.Trim(), Email = input.Email.Trim(),
-                DisplayName = input.DisplayName.Trim()
+                return Results.Conflict(new { message = "Користувач із такими даними вже існує." });
+            }
+
+            // 3. Створення користувача
+            var user = new ApplicationUser 
+            { 
+                Id = Guid.NewGuid(), 
+                UserName = userName, 
+                Email = email, 
+                DisplayName = displayName 
             };
-            var result = await users.CreateAsync(user, input.Password);
-            if (!result.Succeeded) return Results.BadRequest(new { message = "Registration failed" });
+
+            var result = await users.CreateAsync(user, input.Password!);
+
+            // 4. Обробка помилок Identity (слабкий пароль тощо)
+            if (!result.Succeeded)
+            {
+                var identityErrors = result.Errors
+                    .GroupBy(e => e.Code.Contains("Password") ? "password" : "registration")
+                    .ToDictionary(
+                        g => g.Key,
+                        g => g.Select(e => e.Description).ToArray()
+                    );
+                
+                return Results.ValidationProblem(identityErrors);
+            }
+
+            // 5. Призначення ролі за замовчуванням
             var role = await users.AddToRoleAsync(user, DbSeeder.ReporterRole);
             if (!role.Succeeded) throw new InvalidOperationException("Default role assignment failed.");
-            return Results.Created("/api/me", new { user.Id, user.UserName, user.DisplayName });
-        });
+
+            // 6. Успіх (201 Created)
+            return Results.Created($"/api/users/{user.Id}", new RegisteredUserResponse(
+                user.Id, 
+                user.UserName!, 
+                user.DisplayName!
+            ));
+        });        
+
         app.MapPost("/api/auth/login", async (LoginInput input, SignInManager<ApplicationUser> signIn) =>
         {
             if (string.IsNullOrWhiteSpace(input.UserName) || string.IsNullOrEmpty(input.Password))

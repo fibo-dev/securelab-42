@@ -41,3 +41,6 @@ public sealed record CreatedIncidentResponse(
     string Status,
     DateTimeOffset OccurredAtUtc,
     DateTimeOffset CreatedAtUtc);
+
+
+public sealed record RegisteredUserResponse(Guid Id, string UserName, string DisplayName);
