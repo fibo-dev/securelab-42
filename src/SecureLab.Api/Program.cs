@@ -5,6 +5,9 @@ using SecureLab.Api.Application.Incidents;
 using SecureLab.Api.Data;
 using SecureLab.Api.Presentation.Endpoints;
 
+using System.Threading.RateLimiting;
+using Microsoft.AspNetCore.RateLimiting;
+
 var builder = WebApplication.CreateBuilder(new WebApplicationOptions
 {
     Args = args,
@@ -23,9 +26,23 @@ builder.Services.AddScoped<IncidentQueries>();
 
 builder.Services.AddScoped<IncidentCommands>();
 
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.AddFixedWindowLimiter("login-policy", opt =>
+    {
+        var loginLimit = builder.Configuration.GetValue<int?>("RateLimiter:LoginLimit") ?? 5;
+        opt.PermitLimit = loginLimit;
+        opt.Window = TimeSpan.FromMinutes(1);
+        opt.QueueLimit = 0;
+    });
+});
+
 builder.AddLab03Identity();
 
 var app = builder.Build();
+
+app.UseRateLimiter();
 
 var resetRequested = args.Contains("--reset-database", StringComparer.Ordinal);
 await DatabaseBootstrap.InitializeAsync(app.Services, app.Configuration, app.Environment, resetRequested);
