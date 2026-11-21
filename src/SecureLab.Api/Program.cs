@@ -21,6 +21,8 @@ builder.Services.AddDbContext<SecureLabDbContext>(options =>
     options.UseNpgsql(connectionString));
 builder.Services.AddScoped<IncidentQueries>();
 
+builder.Services.AddScoped<IncidentCommands>();
+
 var app = builder.Build();
 
 var resetRequested = args.Contains("--reset-database", StringComparer.Ordinal);

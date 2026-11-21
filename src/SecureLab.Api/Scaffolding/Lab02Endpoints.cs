@@ -1,3 +1,6 @@
+using SecureLab.Api.Application.Incidents;
+using SecureLab.Api.Presentation.Contracts;
+
 using Microsoft.EntityFrameworkCore;
 using SecureLab.Api.Data;
 using SecureLab.Api.Data.Entities;
@@ -25,25 +28,11 @@ public static class Lab02Endpoints
                 Severity = row.Severity.ToString(), Status = row.Status.ToString(), row.CreatedAtUtc
             }));
         });
-        app.MapPost("/api/incidents", async (CreateIncidentRequest request, SecureLabDbContext db, CancellationToken ct) =>
-        {
-            // ЛР 02: доповніть server validation, business rules та response contract.
-            var now = DateTimeOffset.UtcNow;
-            var incident = new Incident
-            {
-                Id = Guid.NewGuid(), OwnerUserId = DbSeeder.AliceId,
-                Title = request.Title ?? "", Description = request.Description ?? "",
-                Severity = Enum.TryParse<IncidentSeverity>(request.Severity, true, out var severity)
-                    ? severity : IncidentSeverity.Low,
-                Status = IncidentStatus.New, OccurredAtUtc = request.OccurredAtUtc ?? now,
-                CreatedAtUtc = now, UpdatedAtUtc = now
-            };
-            db.Incidents.Add(incident);
-            await db.SaveChangesAsync(ct);
-            return Results.Created($"/api/incidents/{incident.Id}", new { incident.Id, incident.Title });
-        });
+        app.MapPost("/api/incidents", async (
+            CreateIncidentRequest request,
+            IncidentCommands commands,
+            CancellationToken cancellationToken) =>
+            await commands.CreateAsync(request, cancellationToken));
     }
 }
 
-public sealed record CreateIncidentRequest(
-    string? Title, string? Description, string? Severity, DateTimeOffset? OccurredAtUtc);

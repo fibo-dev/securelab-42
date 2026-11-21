@@ -26,3 +26,18 @@ public sealed record IncidentCommentResponse(
     DateTimeOffset CreatedAtUtc);
 
 public sealed record IncidentSeveritySummaryResponse(string Severity, int Count);
+
+
+public sealed record CreateIncidentRequest(
+    string? Title,
+    string? Description,
+    string? Severity,
+    DateTimeOffset? OccurredAtUtc);
+
+public sealed record CreatedIncidentResponse(
+    Guid Id,
+    string Title,
+    string Severity,
+    string Status,
+    DateTimeOffset OccurredAtUtc,
+    DateTimeOffset CreatedAtUtc);
