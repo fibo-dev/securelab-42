@@ -5,6 +5,8 @@ using Microsoft.EntityFrameworkCore;
 using SecureLab.Api.Data;
 using SecureLab.Api.Data.Entities;
 
+using System.Security.Claims;
+
 namespace SecureLab.Api.Scaffolding;
 
 // Навчальний старт ЛР 02. Запускати лише з локальними штучними даними.
@@ -62,8 +64,15 @@ public static class Lab02Endpoints
         app.MapPost("/api/incidents", async (
             CreateIncidentRequest request,
             IncidentCommands commands,
-            CancellationToken cancellationToken) =>
-            await commands.CreateAsync(request, cancellationToken));
+            HttpContext httpContext,
+            CancellationToken ct) =>
+        {
+            var userId = httpContext.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (!Guid.TryParse(userId, out var ownerUserId))
+                return Results.Problem(statusCode: StatusCodes.Status500InternalServerError);
+
+            return await commands.CreateAsync(request, ownerUserId, ct);
+        }).RequireAuthorization();
     }
 }
 

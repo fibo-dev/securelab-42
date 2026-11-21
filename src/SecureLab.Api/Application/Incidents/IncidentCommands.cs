@@ -3,6 +3,8 @@ using SecureLab.Api.Data;
 using SecureLab.Api.Data.Entities;
 using SecureLab.Api.Presentation.Contracts;
 
+using System.Security.Claims;
+
 namespace SecureLab.Api.Application.Incidents;
 
 public sealed class IncidentCommands(
@@ -24,6 +26,7 @@ public sealed class IncidentCommands(
 
     public async Task<IResult> CreateAsync(
         CreateIncidentRequest request,
+        Guid ownerUserId,
         CancellationToken cancellationToken)
     {
         var now = DateTimeOffset.UtcNow;
@@ -82,7 +85,7 @@ public sealed class IncidentCommands(
         var incident = new Incident
         {
             Id = Guid.NewGuid(),
-            OwnerUserId = DbSeeder.AliceId,
+            OwnerUserId = ownerUserId,
             Title = title,
             Description = description,
             Severity = severity,

@@ -44,3 +44,5 @@ public sealed record CreatedIncidentResponse(
 
 
 public sealed record RegisteredUserResponse(Guid Id, string UserName, string DisplayName);
+
+public sealed record CurrentUserResponse(Guid Id, string UserName, string Role);

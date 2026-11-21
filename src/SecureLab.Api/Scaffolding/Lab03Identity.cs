@@ -3,6 +3,8 @@ using SecureLab.Api.Data;
 using SecureLab.Api.Data.Entities;
 using SecureLab.Api.Presentation.Contracts;
 
+using System.Security.Claims;
+
 namespace SecureLab.Api.Scaffolding;
 
 public static class Lab03Identity
@@ -113,15 +115,26 @@ public static class Lab03Identity
             var result = await signIn.PasswordSignInAsync(input.UserName, input.Password, false, false);
             return result.Succeeded ? Results.NoContent() : Results.Unauthorized();
         });
-        app.MapPost("/api/auth/logout", () => Results.StatusCode(StatusCodes.Status501NotImplemented));
-        // Навмисно хибна навчальна довіра: ЛР 03 замінює заявлений id на verified principal.
-        app.MapGet("/api/me", async (HttpContext context, SecureLabDbContext db) =>
+	app.MapPost("/api/auth/logout", async (SignInManager<ApplicationUser> signIn) =>
+	{
+	    await signIn.SignOutAsync();
+	    return Results.NoContent();
+	});
+        // Виправлено: ID береться лише з claim principal, заголовок X-Demo-UserId ігнорується
+        app.MapGet("/api/me", (HttpContext httpContext) =>
         {
-            if (!Guid.TryParse(context.Request.Headers["X-Demo-UserId"], out var claimedId))
-                return Results.StatusCode(StatusCodes.Status501NotImplemented);
-            var user = await db.Users.FindAsync(claimedId);
-            return user is null ? Results.NotFound() : Results.Ok(new { user.Id, user.UserName, user.DisplayName });
-        });
+            var userId = httpContext.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (!Guid.TryParse(userId, out var verifiedUserId))
+                return Results.Problem(statusCode: StatusCodes.Status500InternalServerError);
+
+            return Results.Ok(new CurrentUserResponse(
+                verifiedUserId,
+                httpContext.User.FindFirst(ClaimTypes.Name)?.Value ?? "",
+                httpContext.User.FindFirst(ClaimTypes.Role)?.Value ?? ""
+            ));
+        }).RequireAuthorization();
+
+
         // Приклад лише mechanics: не повертає identity і не реалізує оцінювану operation.
         app.MapGet("/api/auth/session-check", () => Results.NoContent()).RequireAuthorization();
     }
