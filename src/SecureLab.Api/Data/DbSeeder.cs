@@ -97,6 +97,14 @@ public static class DbSeeder
         };
 
         dbContext.Incidents.AddRange(aliceIncident, bobIncident, safeTextIncident);
+
+
+        const string StoredProbeText =
+            "<img src=x onerror=\""
+            + "document.querySelector('#lab05-marker-target')"
+            + ".setAttribute('data-lab05-marker','executed')\">";
+
+
         dbContext.IncidentComments.AddRange(
             new IncidentComment
             {
@@ -126,6 +134,15 @@ public static class DbSeeder
                 Text = "Розпочато перевірку журналу автентифікації.",
                 IsInternal = false,
                 CreatedAtUtc = new DateTimeOffset(2026, 8, 2, 14, 40, 0, TimeSpan.Zero)
+            },
+            new IncidentComment
+            {
+                Id = Guid.Parse("30000000-0000-0000-0000-0000000005a1"),
+                Incident = aliceIncident,
+                Author = morgan,
+                Text = StoredProbeText,
+                IsInternal = false,
+                CreatedAtUtc = new DateTimeOffset(2026, 8, 1, 9, 35, 0, TimeSpan.Zero)
             });
         dbContext.IncidentStatusHistory.Add(
             new IncidentStatusHistory
