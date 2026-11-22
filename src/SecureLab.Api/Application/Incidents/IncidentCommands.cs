@@ -24,6 +24,24 @@ public sealed class IncidentCommands(
         IncidentStatus.Resolved
     ];
 
+    public async Task<IResult> EditContentAsync(Guid id, UpdateIncidentRequest request,     CancellationToken ct)
+    {
+        var incident = await dbContext.Incidents.SingleOrDefaultAsync(i => i.Id == id, ct);
+        if (incident is null) return Results.NotFound();
+        incident.Title = request.Title ?? incident.Title;
+        await dbContext.SaveChangesAsync(ct);
+        return Results.NoContent();
+    }
+    
+    public async Task<IResult> TriageAsync(Guid id, CancellationToken ct)
+    {
+        var incident = await dbContext.Incidents.SingleOrDefaultAsync(i => i.Id == id, ct);
+        if (incident is null) return Results.NotFound();
+        incident.Status = IncidentStatus.Triaged;
+        await dbContext.SaveChangesAsync(ct);
+        return Results.NoContent();
+    }
+
     public async Task<IResult> CreateAsync(
         CreateIncidentRequest request,
         Guid ownerUserId,

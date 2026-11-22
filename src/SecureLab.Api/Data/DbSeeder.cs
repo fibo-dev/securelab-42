@@ -107,6 +107,17 @@ public static class DbSeeder
                 IsInternal = false,
                 CreatedAtUtc = new DateTimeOffset(2026, 8, 1, 9, 30, 0, TimeSpan.Zero)
             },
+
+	    new IncidentComment
+	    {
+    	 	Id = Guid.Parse("30000000-0000-0000-0000-000000000003"),
+    	 	IncidentId = AliceIncidentId,
+    	 	AuthorUserId = MorganId,
+    	 	Text = "Внутрішня примітка аналітика: перевірено журнал доступу.",
+    	 	IsInternal = true,
+    	 	CreatedAtUtc = DateTimeOffset.UtcNow
+	    },
+
             new IncidentComment
             {
                 Id = Guid.Parse("30000000-0000-0000-0000-000000000002"),

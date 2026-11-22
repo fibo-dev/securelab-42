@@ -21,6 +21,16 @@ public static class IncidentEndpoints
             .Produces<IncidentDetailsResponse>()
             .ProducesProblem(StatusCodes.Status404NotFound);
 
+
+
+        group.MapPut("/{id:guid}", (Guid id, UpdateIncidentRequest r, IncidentCommands c, CancellationToken ct) =>
+            c.EditContentAsync(id, r, ct));
+
+        group.MapPost("/{id:guid}/triage", (Guid id, IncidentCommands c, CancellationToken ct) =>
+            c.TriageAsync(id, ct));
+
+
+
         group.MapGet("/severity-summary", GetSeveritySummaryAsync)
             .WithName("GetIncidentSeveritySummary")
             .ProducesProblem(StatusCodes.Status501NotImplemented);
