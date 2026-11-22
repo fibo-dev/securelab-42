@@ -40,9 +40,21 @@ builder.Services.AddRateLimiter(options =>
 
 builder.AddLab03Identity();
 
-var app = builder.Build();
 
-app.UseRateLimiter();
+if (builder.Environment.IsDevelopment())
+{
+    builder.Services.AddCors(options =>
+    {
+        options.AddPolicy("Lab05BrowserProbe", policy =>
+        {
+            policy.WithOrigins("http://localhost:4173")
+                  .WithMethods("GET")
+                  .WithHeaders("X-Lab-Cors-Probe");
+        });
+    });
+}
+
+var app = builder.Build();
 
 var resetRequested = args.Contains("--reset-database", StringComparer.Ordinal);
 await DatabaseBootstrap.InitializeAsync(app.Services, app.Configuration, app.Environment, resetRequested);
@@ -51,6 +63,7 @@ if (resetRequested)
 {
     return;
 }
+
 
 app.UseExceptionHandler();
 app.UseStatusCodePages();
@@ -68,8 +81,17 @@ if (app.Environment.IsDevelopment())
     app.MapScalarApiReference();
 }
 
+app.UseRouting();
+
+if (app.Environment.IsDevelopment())
+{
+    app.UseCors("Lab05BrowserProbe");
+}
+
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseRateLimiter();
+
 
 app.UseDefaultFiles();
 app.UseStaticFiles();
