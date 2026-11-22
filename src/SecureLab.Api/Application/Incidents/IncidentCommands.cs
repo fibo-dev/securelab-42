@@ -2,8 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using SecureLab.Api.Data;
 using SecureLab.Api.Data.Entities;
 using SecureLab.Api.Presentation.Contracts;
-
-using System.Security.Claims;
+using SecureLab.Api.Presentation.Security;
 
 namespace SecureLab.Api.Application.Incidents;
 
@@ -24,20 +23,73 @@ public sealed class IncidentCommands(
         IncidentStatus.Resolved
     ];
 
-    public async Task<IResult> EditContentAsync(Guid id, UpdateIncidentRequest request,     CancellationToken ct)
+    public async Task<IResult> EditContentAsync(
+        Guid id,
+        UpdateIncidentRequest request,
+        CallerContext who,
+        CancellationToken ct)
     {
         var incident = await dbContext.Incidents.SingleOrDefaultAsync(i => i.Id == id, ct);
-        if (incident is null) return Results.NotFound();
-        incident.Title = request.Title ?? incident.Title;
+        if (incident is null ||
+            !IncidentAccessRules.IsPermitted(IncidentOperation.EditContent, who, incident.OwnerUserId, incident.Status))
+            return IncidentProblems.NotFound();
+
+        var errors = new Dictionary<string, string[]>();
+        if (request.Title is not null && (string.IsNullOrWhiteSpace(request.Title) || request.Title.Trim().Length > TitleMaxLength))
+            errors["title"] = [$"Заголовок: 1-{TitleMaxLength} символів."];
+        if (request.Description is not null && (string.IsNullOrWhiteSpace(request.Description) || request.Description.Trim().Length > DescriptionMaxLength))
+            errors["description"] = [$"Опис: 1-{DescriptionMaxLength} символів."];
+
+        IncidentSeverity? sev = null;
+        if (request.Severity is not null)
+        {
+            if (Enum.TryParse<IncidentSeverity>(request.Severity, true, out var s) && Enum.IsDefined(s) && !request.Severity.Contains(','))
+                sev = s;
+            else
+                errors["severity"] = ["Допустимі значення: Low, Medium, High, Critical."];
+        }
+
+        if (errors.Count > 0) return Results.ValidationProblem(errors);
+
+        if (request.Title is not null) incident.Title = request.Title.Trim();
+        if (request.Description is not null) incident.Description = request.Description.Trim();
+        if (sev is not null) incident.Severity = sev.Value;
+        incident.UpdatedAtUtc = DateTimeOffset.UtcNow;
+
         await dbContext.SaveChangesAsync(ct);
         return Results.NoContent();
     }
-    
-    public async Task<IResult> TriageAsync(Guid id, CancellationToken ct)
+
+    public async Task<IResult> RemoveAsync(Guid id, CallerContext who, CancellationToken ct)
     {
         var incident = await dbContext.Incidents.SingleOrDefaultAsync(i => i.Id == id, ct);
-        if (incident is null) return Results.NotFound();
+        if (incident is null ||
+            !IncidentAccessRules.IsPermitted(IncidentOperation.Remove, who, incident.OwnerUserId, incident.Status))
+            return IncidentProblems.NotFound();
+
+        dbContext.Incidents.Remove(incident);
+        await dbContext.SaveChangesAsync(ct);
+        return Results.NoContent();
+    }
+
+    public async Task<IResult> TriageAsync(Guid id, CallerContext who, string traceId, CancellationToken ct)
+    {
+        if (!who.IsAnalyst)
+        {
+            logger.LogWarning(
+                "authorization.denied subject={SubjectId} action={Action} resource={ResourceId} result=denied time={OccurredAtUtc:o} trace={TraceId}",
+                who.UserId, "incident.triage", id, DateTimeOffset.UtcNow, traceId);
+            return Results.Problem(statusCode: StatusCodes.Status403Forbidden, title: "Forbidden");
+        }
+
+        var incident = await dbContext.Incidents.SingleOrDefaultAsync(i => i.Id == id, ct);
+        if (incident is null) return IncidentProblems.NotFound();
+
+        if (!IncidentAccessRules.IsPermitted(IncidentOperation.Triage, who, incident.OwnerUserId, incident.Status))
+            return Results.Problem(statusCode: StatusCodes.Status409Conflict, title: "Перехід неможливий для поточного статусу");
+
         incident.Status = IncidentStatus.Triaged;
+        incident.UpdatedAtUtc = DateTimeOffset.UtcNow;
         await dbContext.SaveChangesAsync(ct);
         return Results.NoContent();
     }
@@ -64,7 +116,7 @@ public sealed class IncidentCommands(
             Enum.TryParse<IncidentSeverity>(request.Severity, ignoreCase: true, out var severity)
             && Enum.IsDefined(severity)
             && !request.Severity!.Contains(',');
-            
+
         if (!severityIsValid)
             errors["severity"] = ["Допустимі значення: Low, Medium, High, Critical."];
 
@@ -91,7 +143,7 @@ public sealed class IncidentCommands(
         var duplicateExists = await dbContext.Incidents.AnyAsync(
             item => item.Title == title && DuplicateBlockingStatuses.Contains(item.Status),
             cancellationToken);
-            
+
         if (duplicateExists)
         {
             return Results.Problem(

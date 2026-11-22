@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using SecureLab.Api.Data;
 using SecureLab.Api.Data.Entities;
 using SecureLab.Api.Presentation.Contracts;
+using SecureLab.Api.Presentation.Security;
 
 namespace SecureLab.Api.Application.Incidents;
 
@@ -9,11 +10,12 @@ public sealed class IncidentQueries(SecureLabDbContext dbContext, ILogger<Incide
 {
     public async Task<IReadOnlyList<IncidentListItemResponse>> GetListAsync(
         IncidentStatus? status,
+        CallerContext who,
         CancellationToken cancellationToken)
     {
-        logger.LogInformation("Loading incidents with status filter {Status}", status);
+        logger.LogInformation("Loading incidents with status filter {Status} for user {UserId}", status, who.UserId);
 
-        var query = dbContext.Incidents.AsNoTracking();
+        var query = dbContext.Incidents.AsNoTracking().VisibleTo(who);
         if (status is not null)
         {
             query = query.Where(incident => incident.Status == status);
@@ -31,14 +33,17 @@ public sealed class IncidentQueries(SecureLabDbContext dbContext, ILogger<Incide
             .ToListAsync(cancellationToken);
     }
 
-
-    
-    public Task<IncidentDetailsResponse?> GetDetailsAsync(Guid id, CancellationToken cancellationToken)
+    public Task<IncidentDetailsResponse?> GetDetailsAsync(
+        Guid id,
+        CallerContext who,
+        CancellationToken cancellationToken)
     {
         logger.LogInformation("Loading incident {IncidentId}", id);
+        var showInternal = who.IsAnalyst;
 
         return dbContext.Incidents
             .AsNoTracking()
+            .VisibleTo(who)
             .Where(incident => incident.Id == id)
             .Select(incident => new IncidentDetailsResponse(
                 incident.Id,
@@ -50,7 +55,7 @@ public sealed class IncidentQueries(SecureLabDbContext dbContext, ILogger<Incide
                 incident.CreatedAtUtc,
                 incident.Owner.DisplayName,
                 incident.Comments
-                    .Where(comment => !comment.IsInternal)
+                    .Where(comment => showInternal || !comment.IsInternal)
                     .OrderBy(comment => comment.CreatedAtUtc)
                     .Select(comment => new IncidentCommentResponse(
                         comment.Id,
@@ -58,6 +63,19 @@ public sealed class IncidentQueries(SecureLabDbContext dbContext, ILogger<Incide
                         comment.Text,
                         comment.CreatedAtUtc))
                     .ToList()))
+            .SingleOrDefaultAsync(cancellationToken);
+    }
+
+    public Task<IncidentCommentResponse?> GetCommentAsync(
+        Guid commentId,
+        CallerContext who,
+        CancellationToken cancellationToken)
+    {
+        var uid = who.UserId;
+        var analyst = who.IsAnalyst;
+        return dbContext.IncidentComments.AsNoTracking()
+            .Where(c => c.Id == commentId && (analyst || (!c.IsInternal && c.Incident.OwnerUserId == uid)))
+            .Select(c => new IncidentCommentResponse(c.Id, c.Author.DisplayName, c.Text, c.CreatedAtUtc))
             .SingleOrDefaultAsync(cancellationToken);
     }
 
@@ -93,5 +111,4 @@ public sealed class IncidentQueries(SecureLabDbContext dbContext, ILogger<Incide
             .OrderBy(item => severityOrder.TryGetValue(Enum.Parse<IncidentSeverity>(item.Severity), out var order) ? order : 99)
             .ToList();
     }
-
 }
